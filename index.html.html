@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leitor de CT-e / DACTe</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#1a1a1a;background:#f0f2f5;min-height:100vh}
+header{background:#1F4E79;color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+header svg{width:32px;height:32px;flex-shrink:0}
+header h1{font-size:18px;font-weight:600}
+header p{font-size:12px;opacity:.75;margin-top:2px}
+.container{max-width:1500px;margin:0 auto;padding:1.25rem}
+.drop-zone{background:#fff;border:2px dashed #b0c4de;border-radius:12px;padding:2rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:1rem}
+.drop-zone:hover,.drop-zone.drag{border-color:#1F4E79;background:#e8f0f8}
+.drop-zone svg{width:48px;height:48px;color:#94a3b8;margin-bottom:.75rem}
+.drop-zone.drag svg{color:#1F4E79}
+.drop-zone p{color:#64748b;font-size:14px}
+.drop-zone span{color:#1F4E79;font-weight:600;cursor:pointer;text-decoration:underline}
+#fileInput{display:none}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:1rem}
+.stat{background:#fff;border-radius:10px;padding:.875rem 1rem;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.stat-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.stat-value{font-size:20px;font-weight:700;color:#1F4E79}
+.stat-value.green{color:#16a34a}
+.stat-value.orange{color:#ea580c}
+.stat-value.purple{color:#7c3aed}
+.stat-value.red{color:#dc2626}
+/* ALERTA FRETES NÃO CONSOLIDADOS */
+.alert-banner{background:#fff3cd;border:1.5px solid #f59e0b;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;display:none}
+.alert-banner.show{display:block}
+.alert-banner-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.alert-title{font-weight:700;color:#92400e;font-size:14px;display:flex;align-items:center;gap:8px}
+.alert-title svg{width:20px;height:20px;flex-shrink:0}
+.alert-actions{display:flex;gap:8px;flex-wrap:wrap}
+.alert-detail{margin-top:.875rem;border-top:1px solid #f59e0b;padding-top:.875rem}
+.alert-group{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.75rem 1rem;margin-bottom:.625rem}
+.alert-group-title{font-size:12px;font-weight:700;color:#92400e;margin-bottom:.5rem}
+.alert-group table{width:100%;border-collapse:collapse;font-size:11px}
+.alert-group th{padding:4px 8px;background:#fef3c7;color:#78350f;font-weight:600;text-align:left;border:1px solid #fde68a}
+.alert-group td{padding:4px 8px;border:1px solid #fde68a;color:#451a03}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:1rem}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:.875rem 1.25rem;border-bottom:1px solid #e2e8f0}
+.toolbar input[type=text]{flex:1;min-width:200px;padding:7px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px}
+.toolbar select{padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;background:#fff}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:.15s}
+.btn-primary{background:#1F4E79;color:#fff}
+.btn-primary:hover{background:#16375a}
+.btn-success{background:#16a34a;color:#fff}
+.btn-success:hover{background:#15803d}
+.btn-warn{background:#f59e0b;color:#fff}
+.btn-warn:hover{background:#d97706}
+.btn-danger{background:#fee2e2;color:#b91c1c}
+.btn-danger:hover{background:#fecaca}
+.btn-secondary{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
+.btn-secondary:hover{background:#e2e8f0}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{background:#1F4E79}
+th{padding:8px 9px;font-weight:600;font-size:11px;color:#fff;text-align:left;white-space:nowrap;position:sticky;top:0;background:#1F4E79;z-index:1}
+td{padding:7px 9px;border-bottom:1px solid #e2e8f0;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+tr:nth-child(even) td{background:#f8fafc}
+tr:hover td{background:#e8f0f8}
+tr.row-alert td{background:#fffbeb!important}
+tr.row-alert:hover td{background:#fef3c7!important}
+.num-col{text-align:right;font-family:'Courier New',monospace}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.badge-normal{background:#dbeafe;color:#1e40af}
+.badge-sub{background:#dcfce7;color:#166534}
+.badge-rede{background:#ede9fe;color:#5b21b6}
+.badge-multi{background:#fef3c7;color:#92400e}
+.badge-outro{background:#f1f5f9;color:#475569}
+.badge-alert{background:#fef3c7;color:#92400e;border:1px solid #f59e0b}
+.modal-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;background:#e0f2fe;color:#0369a1}
+.loja-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+.empty{text-align:center;padding:3rem;color:#94a3b8}
+.empty svg{width:56px;height:56px;margin-bottom:1rem;opacity:.4}
+.pagination{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1.25rem;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b}
+.page-btns{display:flex;gap:4px}
+.page-btn{padding:4px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;cursor:pointer;font-size:12px}
+.page-btn:hover{background:#f1f5f9}
+.page-btn.active{background:#1F4E79;color:#fff;border-color:#1F4E79}
+.tabs{display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:1rem}
+.tab{padding:.625rem 1.25rem;cursor:pointer;font-size:13px;font-weight:500;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px;transition:.15s}
+.tab:hover{color:#1F4E79}
+.tab.active{color:#1F4E79;border-bottom-color:#1F4E79}
+.charts-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
+.charts-grid.two-col{grid-template-columns:repeat(2,1fr)}
+.chart-card{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:.875rem}
+.chart-card.span2{grid-column:span 2}
+.chart-card.span3{grid-column:span 3}
+.chart-title{font-size:11px;font-weight:600;color:#1F4E79;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.03em}
+.chart-wrap{position:relative}
+canvas{max-width:100%}
+.progress-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;align-items:center;justify-content:center}
+.progress-box{background:#fff;border-radius:12px;padding:2rem;text-align:center;min-width:280px}
+.progress-bar-wrap{background:#e2e8f0;border-radius:99px;height:8px;margin:1rem 0}
+.progress-bar{background:#1F4E79;border-radius:99px;height:100%;transition:width .2s}
+.progress-label{font-size:13px;color:#64748b}
+footer{text-align:center;padding:1rem;font-size:11px;color:#94a3b8;margin-top:.5rem}
+.kpi-card{background:#fff;border-radius:8px;padding:.625rem .875rem;box-shadow:0 1px 3px rgba(0,0,0,.08);border-left:3px solid #1F4E79}
+.kpi-card.green{border-left-color:#16a34a}
+.kpi-card.orange{border-left-color:#ea580c}
+.kpi-card.purple{border-left-color:#7c3aed}
+.kpi-card.red{border-left-color:#dc2626}
+.kpi-card.teal{border-left-color:#0f766e}
+.kpi-card.amber{border-left-color:#b45309}
+.kpi-label{font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:1px}
+.kpi-value{font-size:16px;font-weight:700;color:#1a1a1a;line-height:1.2}
+.kpi-sub{font-size:10px;color:#94a3b8;margin-top:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+  </svg>
+  <div>
+    <h1>Leitor de CT-e / DACTe</h1>
+    <p>Sistema de leitura e análise de Conhecimentos de Transporte Eletrônico · processamento 100% local</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="drop-zone" id="dropZone">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/>
+    </svg>
+    <p>Arraste os arquivos <strong>XML de CT-e</strong> aqui ou <span onclick="document.getElementById('fileInput').click()">clique para selecionar</span></p>
+    <p style="font-size:12px;margin-top:6px;color:#94a3b8">Suporta CT-e versões 3.00 e 4.00 · múltiplos arquivos simultâneos</p>
+  </div>
+  <input type="file" id="fileInput" multiple accept=".xml">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="stat-label">CT-e Importados</div><div class="stat-value" id="statTotal">0</div></div>
+    <div class="stat"><div class="stat-label">Valor Total Frete</div><div class="stat-value green" id="statFrete">R$ 0,00</div></div>
+    <div class="stat"><div class="stat-label">Peso Total (kg)</div><div class="stat-value orange" id="statPeso">0</div></div>
+    <div class="stat"><div class="stat-label">NF-e Vinculadas</div><div class="stat-value" id="statNfe">0</div></div>
+    <div class="stat"><div class="stat-label">Ticket Médio Frete</div><div class="stat-value purple" id="statMedia">R$ 0,00</div></div>
+    <div class="stat"><div class="stat-label">⚠ Não Consolidados</div><div class="stat-value red" id="statAlerta">0</div></div>
+    <div class="stat"><div class="stat-label">Erros de Leitura</div><div class="stat-value red" id="statErros">0</div></div>
+  </div>
+
+  <!-- ALERTA FRETES NÃO CONSOLIDADOS -->
+  <div class="alert-banner" id="alertBanner">
+    <div class="alert-banner-header">
+      <div class="alert-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span id="alertTitleText">Fretes Não Consolidados Detectados</span>
+      </div>
+      <div class="alert-actions">
+        <button class="btn btn-warn" onclick="toggleAlertDetail()">👁 Ver detalhes</button>
+        <button class="btn btn-success" onclick="exportAlertaXLSX()">⬇ Exportar Contestação Excel</button>
+        <button class="btn btn-primary" onclick="exportAlertaCSV()">⬇ Exportar CSV</button>
+      </div>
+    </div>
+    <div class="alert-detail" id="alertDetail" style="display:none">
+      <div id="alertGroups"></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('tabela')">📋 Tabela de Dados</div>
+    <div class="tab" onclick="switchTab('graficos')">📊 Análise de Custos</div>
+    <div class="tab" onclick="switchTab('kpis')">🎯 KPIs de Logística</div>
+  </div>
+
+  <!-- TABELA -->
+  <div id="tabela">
+    <div class="card">
+      <div class="toolbar">
+        <input type="text" id="searchBox" placeholder="🔍  Buscar por loja, emitente, NF-e, chave...">
+        <select id="filterTipo"><option value="">Todos os tipos</option><option>Normal</option><option>Subcontratação</option><option>Redespacho</option><option>Redespacho Intermediário</option><option>Serviço vinculado à Multimodal</option></select>
+        <select id="filterModal"><option value="">Todas as modais</option><option>Rodoviário</option><option>Aéreo</option><option>Aquaviário</option><option>Ferroviário</option><option>Dutoviário</option></select>
+        <select id="filterUFOrig"><option value="">Origem: todas UFs</option></select>
+        <select id="filterUFDest"><option value="">Destino: todas UFs</option></select>
+        <select id="filterLoja"><option value="">Todas as lojas</option></select>
+        <select id="filterAlerta"><option value="">Todos os CT-e</option><option value="1">⚠ Apenas não consolidados</option></select>
+        <button class="btn btn-success" onclick="exportXLSX()">⬇ Exportar Excel</button>
+        <button class="btn btn-primary" onclick="exportCSV()">⬇ Exportar CSV</button>
+        <button class="btn btn-danger" onclick="clearAll()">🗑 Limpar</button>
+      </div>
+
+      <div class="table-wrap">
+        <div class="empty" id="emptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-4"/><polyline points="9 10 12 13 15 10"/><line x1="12" y1="13" x2="12" y2="21"/></svg>
+          <p>Nenhum arquivo importado ainda.<br>Arraste os XMLs de CT-e acima para começar.</p>
+        </div>
+        <table id="mainTable" style="display:none">
+          <thead><tr>
+            <th style="width:34px">#</th>
+            <th style="width:150px">Emissor do DACTe</th>
+            <th style="width:80px">Nº DACTe</th>
+            <th style="width:82px">Data Emissão</th>
+            <th style="width:88px">Vl. Frete</th>
+            <th style="width:88px">Vl. NF</th>
+            <th style="width:75px">Peso (kg)</th>
+            <th style="width:55px">Volumes</th>
+            <th style="width:150px">Remetente</th>
+            <th style="width:110px">Cidade Remetente</th>
+            <th style="width:50px">UF Rem.</th>
+            <th style="width:150px">Destinatário</th>
+            <th style="width:110px">Cidade Dest.</th>
+            <th style="width:50px">UF Dest.</th>
+            <th style="width:110px">NF-e(s)</th>
+          </tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination" id="pagination" style="display:none">
+        <span id="pageInfo"></span>
+        <div class="page-btns" id="pageBtns"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRÁFICOS -->
+  <div id="graficos" style="display:none">
+    <div class="charts-grid">
+      <div class="chart-card"><div class="chart-title">Frete por Modal</div><div class="chart-wrap" style="height:160px"><canvas id="chartModal"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Frete por Tipo de CT-e</div><div class="chart-wrap" style="height:160px"><canvas id="chartTipo"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Distribuição de Peso</div><div class="chart-wrap" style="height:160px"><canvas id="chartPeso"></canvas></div></div>
+      <div class="chart-card span3"><div class="chart-title">Evolução Mensal do Frete</div><div class="chart-wrap" style="height:150px"><canvas id="chartMensal"></canvas></div></div>
+      <div class="chart-card span2"><div class="chart-title">Top 10 Transportadoras por Valor</div><div class="chart-wrap" style="height:200px"><canvas id="chartEmit"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Frete por Loja</div><div class="chart-wrap" style="height:200px"><canvas id="chartLoja"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div id="kpis" style="display:none">
+    <div id="kpiCards" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:.75rem"></div>
+    <div class="charts-grid" style="grid-template-columns:repeat(3,1fr);gap:.75rem">
+      <div class="chart-card span3"><div class="chart-title">📅 Frequência de Envios por Mês (CT-e)</div><div class="chart-wrap" style="height:120px"><canvas id="kpiFreqMensal"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">🔥 Concentração por Transportadora</div><div class="chart-wrap" style="height:180px"><canvas id="kpiConcentracao"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">📈 % Frete/NF por Loja</div><div class="chart-wrap" style="height:180px"><canvas id="kpiFreteLojaPlot"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">🗺️ Top Rotas por Custo</div><div class="chart-wrap" style="height:180px"><canvas id="kpiRotas"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">⚖️ Custo R$/kg por Transportadora</div><div class="chart-wrap" style="height:180px"><canvas id="kpiRkgTransp"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">📦 Volume Médio por CT-e</div><div class="chart-wrap" style="height:180px"><canvas id="kpiVolMedio"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">⚠️ % Fretes Não Consolidados</div><div class="chart-wrap" style="height:180px"><canvas id="kpiNaoConsol"></canvas></div></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="progress-overlay" id="progressOverlay">
+  <div class="progress-box">
+    <div style="font-weight:600;margin-bottom:.5rem">Processando arquivos...</div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+    <div class="progress-label" id="progressLabel">0 de 0</div>
+  </div>
+</div>
+
+<footer>Leitor de CT-e · processamento 100% local · nenhum dado enviado para servidores · compatível com Chrome, Edge e Firefox</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+const $ = id => document.getElementById(id);
+let allData = [];
+let filtered = [];
+let alertaGroups = [];
+let page = 1;
+const PER = 50;
+let charts = {};
+
+// ── MAPEAMENTO DE LOJAS ────────────────────────────────────────
+// CNPJ sem formatação (apenas dígitos)
+const LOJAS_CNPJ = {
+  '66934555003053':'BELVEDERE',
+  '66934555002910':'BH SHOPPING',
+  '66934555000542':'LOURDES',
+  '66934555001000':'PONTEIO',
+  '66934555001867':'LEBLON',
+  '66934555001786':'BARRA SHOPPING',
+  '66934555002677':'VILLAGE MALL',
+  '66934555001190':'IPANEMA',
+  '66934555003215':'ANGRA DOS REIS',
+  '66934555000976':'GAVEA',
+  '66934555002081':'PARK SHOPPING',
+  '66934555003487':'IGUATEMI BRASILIA',
+  '66934555000380':'GABRIEL MONTEIRO',
+  '66934555001271':'IGUATEMI',
+  '66934555003134':'FAZENDA BOA VISTA',
+  '66934555000895':'HIGIENOPOLIS',
+  '66934555002324':'CIDADE JARDIM',
+  '66934555000623':'VILA NOVA CONCEIÇÃO',
+  '66934555000119':'JOÃO CACHOEIRA',
+  '66934555002839':'OUTLET CATARINA',
+  '66934555002162':'OUTLET CAMPINAS',
+  '66934555001948':'RETAGUARDA'
+};
+
+// CNPJ especial com lógica por série da NF-e transportada
+const CNPJ_ESPECIAL = '66934555001514';
+const SERIE_LOJA = {
+  '7':'CORPORATIVO',
+  '9':'MULTIMARCAS',
+  '8':'HOTELARIA',
+  '12':'E-COMMERCE',
+  '10':'ATELIE',
+  '4':'ESTOQUE CENTRAL',
+  '04':'ESTOQUE CENTRAL'
+};
+
+function cnpjNum(cnpj) {
+  return (cnpj||'').replace(/\D/g,'');
+}
+
+// Resolve nome da loja dado o CNPJ e a série das NF-es transportadas
+function resolveNomeLoja(cnpj, serieNFe, nomeOriginal) {
+  const c = cnpjNum(cnpj);
+  if (c === CNPJ_ESPECIAL) {
+    const nome = SERIE_LOJA[serieNFe] || SERIE_LOJA[String(parseInt(serieNFe,10))];
+    return nome || `CORPORATIVO (série ${serieNFe||'?'})`;
+  }
+  return LOJAS_CNPJ[c] || nomeOriginal;
+}
+
+// ── PARSER ────────────────────────────────────────────────────
+const MODAL = {1:'Rodoviário',2:'Aéreo',3:'Aquaviário',4:'Ferroviário',5:'Dutoviário'};
+const TIPO  = {0:'Normal',1:'Subcontratação',2:'Redespacho',3:'Redespacho Intermediário',4:'Serviço vinculado à Multimodal'};
+
+function t(el, tag) {
+  const n = el ? el.querySelector(tag) : null;
+  return n ? n.textContent.trim() : '';
+}
+
+function parseCTe(xml, name) {
+  try {
+    const doc = new DOMParser().parseFromString(xml, 'text/xml');
+    if (doc.querySelector('parsererror')) return {_error:`XML inválido: ${name}`};
+
+    // Helper com suporte a namespace (localName) — funciona com e sem xmlns
+    function q(root, tag) {
+      // tenta selector direto primeiro; se não achar, busca por localName
+      let n = root.querySelector(tag);
+      if (!n) {
+        const all = root.getElementsByTagNameNS('*', tag);
+        n = all.length ? all[0] : null;
+      }
+      return n ? n.textContent.trim() : '';
+    }
+    function qs(root, tag) {
+      const r = [];
+      const all = root.getElementsByTagNameNS('*', tag);
+      for (let i=0; i<all.length; i++) r.push(all[i]);
+      return r;
+    }
+
+    if (!qs(doc,'CTe').length && !qs(doc,'cte').length) return {_error:`Não é um CT-e: ${name}`};
+
+    // ── ide ──
+    const nCT    = q(doc,'nCT');
+    const serie  = q(doc,'serie');
+    const modal  = MODAL[q(doc,'modal')] || q(doc,'modal') || '';
+    const tpCTe  = TIPO[q(doc,'tpCTe')]  || q(doc,'tpCTe')  || '';
+    let dhEmiRaw = q(doc,'dhEmi').substring(0,10);
+    let dhEmi    = dhEmiRaw ? dhEmiRaw.split('-').reverse().join('/') : '';
+    const dhEmiISO = q(doc,'dhEmi').substring(0,7);
+    const xMunIni = q(doc,'xMunIni');
+    const xMunFim = q(doc,'xMunFim');
+    const ufIni   = q(doc,'UFIni');
+    const ufFim   = q(doc,'UFFim');
+    const orig    = xMunIni ? `${xMunIni}/${ufIni}` : ufIni;
+    const dest2   = xMunFim ? `${xMunFim}/${ufFim}` : ufFim;
+
+    // ── emit (transportadora) ──
+    const emitEl  = qs(doc,'emit')[0] || doc;
+    const emitNome = q(emitEl,'xNome');
+    const emitCNPJ = q(emitEl,'CNPJ');
+
+    // ── rem (remetente) — endereço em <enderReme> ──
+    const remEl   = qs(doc,'rem')[0]  || null;
+    const remNomeRaw = remEl ? q(remEl,'xNome') : '';
+    const remCNPJ    = remEl ? (q(remEl,'CNPJ') || q(remEl,'CPF')) : '';
+    const enderRem   = remEl ? (qs(remEl,'enderReme')[0] || remEl) : null;
+    const remMun     = enderRem ? q(enderRem,'xMun') : '';
+    const remUF      = enderRem ? q(enderRem,'UF')   : '';
+
+    // ── dest (destinatário) — endereço em <enderDest> ──
+    const destEl     = qs(doc,'dest')[0] || null;
+    const destNomeRaw= destEl ? q(destEl,'xNome') : '';
+    const destCNPJ   = destEl ? (q(destEl,'CNPJ') || q(destEl,'CPF')) : '';
+    const enderDest  = destEl ? (qs(destEl,'enderDest')[0] || destEl) : null;
+    const destMun    = enderDest ? q(enderDest,'xMun') : '';
+    const destUF     = enderDest ? q(enderDest,'UF')   : '';
+
+    // ── Série da NF-e transportada (para loja CNPJ_ESPECIAL) ──
+    let serieNFe = '';
+    const infNFeEls = qs(doc,'infNFe');
+    const infOutrosEls = qs(doc,'infOutros');
+    if (infNFeEls.length > 0) {
+      const chNFe = q(infNFeEls[0],'chave');
+      // chave NF-e: posições 22-24 (0-based) = série (3 dígitos, sem zeros à esq.)
+      if (chNFe && chNFe.length >= 25) {
+        serieNFe = String(parseInt(chNFe.substring(22,25), 10));
+      }
+    }
+    if (!serieNFe && infOutrosEls.length > 0) {
+      serieNFe = q(infOutrosEls[0],'serie') || '';
+    }
+
+    // ── Resolve nomes de loja (remetente e destinatário) ──
+    const remNome  = resolveNomeLoja(remCNPJ,  serieNFe, remNomeRaw);
+    const destNome = resolveNomeLoja(destCNPJ, serieNFe, destNomeRaw);
+    const isLojaRem  = cnpjNum(remCNPJ)  in LOJAS_CNPJ || cnpjNum(remCNPJ)  === CNPJ_ESPECIAL;
+    const isLojaDest = cnpjNum(destCNPJ) in LOJAS_CNPJ || cnpjNum(destCNPJ) === CNPJ_ESPECIAL;
+
+    // ── Valores de prestação ──
+    const vTPrest = parseFloat(q(doc,'vTPrest')) || 0;
+    // Valor do frete = vTPrest (total da prestação do serviço de transporte)
+    const vFrete = vTPrest;
+
+    // ── Carga: peso e volumes ──
+    // Estratégia 1: ler todos os infQ e identificar pelo tpMed ou cUnid
+    let peso = 0;
+    let volumes = 0;
+    const infQEls = qs(doc,'infQ');
+    infQEls.forEach(q2 => {
+      const cUnid = q(q2,'cUnid');
+      const tpMed = q(q2,'tpMed').toUpperCase();
+      const val   = parseFloat(q(q2,'qCarga')) || 0;
+      // Peso: tpMed contém PESO ou cUnid 01(KG/cubado) ou 02(TON)
+      if (tpMed.includes('PESO') || cUnid === '01' || cUnid === '02') {
+        if (!peso) peso = cUnid === '02' ? val * 1000 : val;
+      }
+      // Volumes: tpMed contém CAIXA, VOLUME, EMBALAGEM, UNIDADE, PEÇA ou cUnid 03/04
+      else if (tpMed.includes('CAIXA') || tpMed.includes('VOLUME') ||
+               tpMed.includes('UNIDADE') || tpMed.includes('EMBAL') ||
+               tpMed.includes('PECA') || tpMed.includes('PEÇA') ||
+               cUnid === '03' || cUnid === '04') {
+        if (!volumes) volumes = val;
+      }
+    });
+    // Fallback: se só tem 1 infQ e não identificou nada, usa como peso
+    if (!peso && !volumes && infQEls.length === 1) {
+      peso = parseFloat(q(infQEls[0],'qCarga')) || 0;
+    }
+    // Estratégia 2: buscar volume em <ObsCont xCampo="QtdeVolume"> dentro de <compl>
+    // (padrão usado por algumas transportadoras como Movvi)
+    if (!volumes) {
+      const obsCont = qs(doc,'ObsCont');
+      obsCont.forEach(ob => {
+        const campo = (ob.getAttribute('xCampo') || ob.getAttribute('xCampo')||'').toLowerCase();
+        if (campo.includes('volume') || campo.includes('qtde') || campo.includes('quantidade')) {
+          const val = parseFloat(q(ob,'xTexto')) || 0;
+          if (val > 0 && !volumes) volumes = val;
+        }
+      });
+    }
+    // Estratégia 3: buscar peso em ObsCont se ainda não encontrado
+    if (!peso) {
+      const obsCont = qs(doc,'ObsCont');
+      obsCont.forEach(ob => {
+        const campo = (ob.getAttribute('xCampo')||'').toLowerCase();
+        // pesoAferido ou pesoMercadoria têm prioridade sobre cubado
+        if ((campo.includes('pesoaferido') || campo.includes('pesomercadoria')) && !peso) {
+          const val = parseFloat(q(ob,'xTexto')) || 0;
+          if (val > 0) peso = val;
+        }
+      });
+    }
+
+    // ── Valor declarado da mercadoria (NF) ──
+    const vCarga = parseFloat(q(doc,'vCarga')) || 0;
+
+    // ── NF-es transportadas ──
+    const nfes = [];
+    infNFeEls.forEach(n => { const ch = q(n,'chave'); if(ch) nfes.push(ch.slice(25,34)); });
+    infOutrosEls.forEach(n => { const nd = q(n,'nDoc'); if(nd) nfes.push(nd); });
+    const nfeCount = nfes.length;
+
+    // ── Métricas derivadas ──
+    const freteNFpct = vCarga > 0 ? (vFrete / vCarga) * 100 : 0;
+    const freteKg    = peso   > 0 ? vFrete / peso           : 0;
+
+    // ── Chave de acesso ──
+    const chEl = qs(doc,'infCte')[0];
+    const chave = chEl ? (chEl.getAttribute('Id')||'').replace('CTe','') : '';
+
+    return {
+      nCT: nCT+(serie&&serie!=='0'?`/${serie}`:''), chave, modal, tpCTe,
+      dhEmi, dhEmiRaw, dhEmiISO, orig, dest2, ufIni, ufFim,
+      emitNome, emitCNPJ,
+      remNomeRaw, remNome, remCNPJ, remMun, remUF, isLojaRem,
+      destNomeRaw, destNome, destCNPJ, destMun, destUF, isLojaDest,
+      serieNFe,
+      vFrete, vTPrest, vCarga, peso, volumes,
+      nfes: nfes.join(', '), nfeCount,
+      freteNFpct, freteKg,
+      arquivo: name,
+      _alerta: false
+    };
+  } catch(e) { return {_error:`Erro: ${name} — ${e.message}`}; }
+}
+
+// ── DETECÇÃO DE FRETES NÃO CONSOLIDADOS ──────────────────────
+// Critério: mesmo CNPJ remetente (<rem>) + mesmo CNPJ destinatário (<dest>) + mesma data de emissão
+// Ex: loja IGUATEMI fez dois envios para a GAVEA no mesmo dia → deveriam ser um único CT-e
+function detectarNaoConsolidados(data) {
+  const valid = data.filter(d => !d._error);
+  valid.forEach(d => d._alerta = false);
+
+  // Chave: CNPJ_remetente | CNPJ_destinatario | data_emissao
+  const grupos = {};
+  valid.forEach(d => {
+    const cnpjRem  = cnpjNum(d.remCNPJ); // CNPJ do remetente (<rem>)
+    const cnpjDest = cnpjNum(d.destCNPJ);
+    if (!cnpjRem || !cnpjDest) return; // ignora se não tem CNPJ dos dois lados
+    const key = `${cnpjRem}|${cnpjDest}|${d.dhEmiRaw}`;
+    if (!grupos[key]) grupos[key] = [];
+    grupos[key].push(d);
+  });
+
+  alertaGroups = [];
+  Object.entries(grupos).forEach(([key, lista]) => {
+    if (lista.length > 1) {
+      lista.forEach(d => d._alerta = true);
+      const rep = lista[0];
+      alertaGroups.push({
+        remetente:    rep.remNome  || rep.emitNome,
+        cnpjRem:      rep.remCNPJ || rep.emitCNPJ,
+        destinatario: rep.destNome,
+        cnpjDest:     rep.destCNPJ,
+        transportadora: rep.emitNome,
+        cnpjTransp:   rep.emitCNPJ,
+        data:         rep.dhEmi,
+        rota:         `${rep.orig} → ${rep.dest2}`,
+        ctes:         lista,
+        totalFrete:   lista.reduce((a,b)=>a+(b.vTPrest||0),0)
+      });
+    }
+  });
+
+  return alertaGroups;
+}
+
+// ── FORMATOS ─────────────────────────────────────────────────
+function fmt(v)     { return (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function fmtN(v,d)  { return (v||0).toLocaleString('pt-BR',{minimumFractionDigits:d||0,maximumFractionDigits:d||0}); }
+function fmtR(v,d)  { return isFinite(v)&&v>0 ? fmtN(v,d||2) : '—'; }
+
+function badge(tipo) {
+  const map = {Normal:'badge-normal',Subcontratação:'badge-sub',Redespacho:'badge-rede','Redespacho Intermediário':'badge-rede','Serviço vinculado à Multimodal':'badge-multi'};
+  return `<span class="badge ${map[tipo]||'badge-outro'}">${tipo||'—'}</span>`;
+}
+
+// ── RENDER TABELA ─────────────────────────────────────────────
+function renderTable() {
+  const body = $('tableBody');
+  const start = (page-1)*PER;
+  const slice = filtered.slice(start, start+PER);
+  body.innerHTML = '';
+
+  if (!filtered.length) {
+    $('mainTable').style.display = 'none';
+    $('emptyState').style.display = '';
+    return;
+  }
+  $('mainTable').style.display = '';
+  $('emptyState').style.display = 'none';
+
+  slice.forEach((d,i) => {
+    const tr = document.createElement('tr');
+    if (d._error) {
+      tr.innerHTML = `<td colspan="14" style="color:#dc2626;font-size:11px">⚠ ${d._error}</td>`;
+    } else {
+      if (d._alerta) tr.classList.add('row-alert');
+      const alertIcon = d._alerta ? ' <span class="badge badge-alert" title="Frete não consolidado — mesmo remetente, mesmo destinatário e mesma data">⚠ NC</span>' : '';
+      const remCell = d.isLojaRem
+        ? `<span class="loja-badge" title="${d.remNomeRaw}">${d.remNome}</span>`
+        : `<span title="${d.remNome}">${d.remNome||'—'}</span>`;
+      const destCell = d.isLojaDest
+        ? `<span class="loja-badge" title="${d.destNomeRaw}">${d.destNome}</span>`
+        : `<span title="${d.destNome}">${d.destNome||'—'}</span>`;
+      tr.innerHTML = `
+        <td style="color:#94a3b8">${start+i+1}</td>
+        <td title="${d.emitNome}">${d.emitNome}</td>
+        <td title="${d.chave}">${d.nCT}${alertIcon}</td>
+        <td>${d.dhEmi}</td>
+        <td class="num-col">${fmt(d.vFrete)}</td>
+        <td class="num-col">${d.vCarga>0?fmt(d.vCarga):'—'}</td>
+        <td class="num-col">${d.peso>0?fmtN(d.peso,3):'—'}</td>
+        <td class="num-col">${d.volumes>0?fmtN(d.volumes,0):'—'}</td>
+        <td>${remCell}</td>
+        <td>${d.remMun||'—'}</td>
+        <td>${d.remUF||'—'}</td>
+        <td>${destCell}</td>
+        <td>${d.destMun||'—'}</td>
+        <td>${d.destUF||'—'}</td>
+        <td style="font-size:11px" title="${d.nfes}">${d.nfes||'—'}</td>`;
+    }
+    body.appendChild(tr);
+  });
+
+  const totalPages = Math.ceil(filtered.length/PER);
+  $('pagination').style.display = totalPages > 1 ? 'flex' : 'none';
+  $('pageInfo').textContent = `Exibindo ${start+1}–${Math.min(start+PER,filtered.length)} de ${filtered.length} registros`;
+  const pb = $('pageBtns'); pb.innerHTML = '';
+  for (let i=1; i<=totalPages; i++) {
+    if (i>1&&i<totalPages&&Math.abs(i-page)>2){if(pb.lastChild&&pb.lastChild.textContent!=='…'){const s=document.createElement('span');s.textContent='…';s.style.padding='4px';pb.appendChild(s);}continue;}
+    const b = document.createElement('button');
+    b.className = 'page-btn'+(i===page?' active':'');
+    b.textContent = i;
+    b.onclick = () => {page=i; renderTable();};
+    pb.appendChild(b);
+  }
+}
+
+// ── ALERTA UI ─────────────────────────────────────────────────
+function renderAlertBanner() {
+  const banner  = $('alertBanner');
+  const groups  = $('alertGroups');
+  const totalNC = alertaGroups.reduce((a,g)=>a+g.ctes.length,0);
+
+  if (!alertaGroups.length) { banner.classList.remove('show'); return; }
+
+  banner.classList.add('show');
+  $('alertTitleText').textContent =
+    `⚠ ${alertaGroups.length} grupo(s) de frete não consolidado detectado(s) — ${totalNC} CT-e(s) para contestação`;
+
+  groups.innerHTML = alertaGroups.map(g => `
+    <div class="alert-group">
+      <div class="alert-group-title">
+        De: <strong>${g.remetente}</strong> (${g.cnpjRem}) &nbsp;→&nbsp;
+        Para: <strong>${g.destinatario}</strong> (${g.cnpjDest}) &nbsp;|&nbsp;
+        Transportadora: ${g.transportadora} &nbsp;|&nbsp;
+        Data: ${g.data} &nbsp;|&nbsp; ${g.ctes.length} CT-e(s) não consolidados &nbsp;|&nbsp; Total frete: ${fmt(g.totalFrete)}
+      </div>
+      <table>
+        <thead><tr>
+          <th>Nº CT-e</th><th>Loja / Dest.</th><th>NF-e(s)</th>
+          <th>Vl. Frete</th><th>Vl. NF</th><th>Peso (kg)</th><th>Vol.</th>
+        </tr></thead>
+        <tbody>
+          ${g.ctes.map(c=>`<tr>
+            <td>${c.nCT}</td>
+            <td>${c.destNome}</td>
+            <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${c.nfes}">${c.nfes||'—'}</td>
+            <td>${fmt(c.vFrete)}</td>
+            <td>${c.vCarga>0?fmt(c.vCarga):'—'}</td>
+            <td>${fmtN(c.peso,3)}</td>
+            <td>${c.volumes>0?fmtN(c.volumes,0):'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('');
+}
+
+let alertDetailVisible = false;
+function toggleAlertDetail() {
+  alertDetailVisible = !alertDetailVisible;
+  $('alertDetail').style.display = alertDetailVisible ? '' : 'none';
+}
+
+// ── FILTROS / STATS ───────────────────────────────────────────
+function applyFilters() {
+  const s    = $('searchBox').value.toLowerCase();
+  const tp   = $('filterTipo').value;
+  const md   = $('filterModal').value;
+  const ufo  = $('filterUFOrig').value;
+  const ufd  = $('filterUFDest').value;
+  const loja = $('filterLoja').value;
+  const alrt = $('filterAlerta').value;
+
+  filtered = allData.filter(d => {
+    if (d._error) return false;
+    if (tp   && d.tpCTe  !== tp)   return false;
+    if (md   && d.modal  !== md)   return false;
+    if (ufo  && d.ufIni  !== ufo)  return false;
+    if (ufd  && d.ufFim  !== ufd)  return false;
+    if (loja && d.destNome !== loja && d.remNome !== loja) return false;
+    if (alrt === '1' && !d._alerta) return false;
+    if (s && !`${d.emitNome} ${d.remNome} ${d.remNomeRaw} ${d.destNome} ${d.destNomeRaw} ${d.nCT} ${d.chave} ${d.nfes} ${d.remMun} ${d.destMun} ${d.remUF} ${d.destUF}`.toLowerCase().includes(s)) return false;
+    return true;
+  });
+  page = 1;
+  updateStats();
+  renderTable();
+  renderCharts();
+}
+
+function updateStats() {
+  const valid  = allData.filter(d=>!d._error);
+  const erros  = allData.filter(d=>d._error);
+  const nc     = valid.filter(d=>d._alerta).length;
+  const fTotal = filtered.reduce((a,b)=>a+(b.vTPrest||0),0);
+  const pTotal = filtered.reduce((a,b)=>a+(b.peso||0),0);
+  const nfeT   = filtered.reduce((a,b)=>a+(b.nfeCount||0),0);
+  const media  = filtered.length ? fTotal/filtered.length : 0;
+  $('statTotal').textContent  = valid.length;
+  $('statFrete').textContent  = fmt(fTotal);
+  $('statPeso').textContent   = fmtN(pTotal,0);
+  $('statNfe').textContent    = nfeT;
+  $('statMedia').textContent  = fmt(media);
+  $('statAlerta').textContent = nc;
+  $('statErros').textContent  = erros.length;
+}
+
+function populateFilters() {
+  const valid = allData.filter(d=>!d._error);
+  const origs = [...new Set(valid.filter(d=>d.ufIni).map(d=>d.ufIni))].sort();
+  const dests = [...new Set(valid.filter(d=>d.ufFim).map(d=>d.ufFim))].sort();
+  const lojas = [...new Set(valid.filter(d=>d.isLojaDest||d.isLojaRem).map(d=>d.isLojaDest?d.destNome:d.remNome))].sort();
+  $('filterUFOrig').innerHTML = '<option value="">Origem: todas UFs</option>'+origs.map(u=>`<option>${u}</option>`).join('');
+  $('filterUFDest').innerHTML = '<option value="">Destino: todas UFs</option>'+dests.map(u=>`<option>${u}</option>`).join('');
+  $('filterLoja').innerHTML   = '<option value="">Todas as lojas</option>'+lojas.map(l=>`<option>${l}</option>`).join('');
+}
+
+// ── GRÁFICOS ──────────────────────────────────────────────────
+const COLORS = ['#1F4E79','#16a34a','#ea580c','#7c3aed','#0369a1','#b45309','#be185d','#0f766e','#854d0e','#6d28d9'];
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function mkChart(id, type, labels, data, label, colors) {
+  destroyChart(id);
+  charts[id] = new Chart($(id).getContext('2d'), {
+    type,
+    data:{labels,datasets:[{label,data,backgroundColor:colors||COLORS.slice(0,labels.length),borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:type==='doughnut'||type==='pie',position:'bottom',labels:{font:{size:9},boxWidth:8,padding:4}}},
+      scales:(type==='bar'||type==='line')?{x:{ticks:{font:{size:9},maxRotation:30},grid:{display:false}},y:{ticks:{font:{size:9},callback:v=>fmt(v)},grid:{color:'#f1f5f9'}}}:undefined}
+  });
+}
+
+function mkBarH(id, labels, data, cbk) {
+  destroyChart(id);
+  charts[id] = new Chart($(id).getContext('2d'), {
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:COLORS.slice(0,labels.length),borderWidth:0}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:9},callback:cbk||(v=>fmt(v))},grid:{color:'#f1f5f9'}},y:{ticks:{font:{size:9}}}}}
+  });
+}
+
+function groupBy(arr, key, val='vTPrest') {
+  const m={};
+  arr.forEach(d=>{const k=d[key]||'Outros';m[k]=(m[k]||0)+(d[val]||0);});
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+}
+
+function renderCharts() {
+  if ($('graficos').style.display==='none') return;
+  const v = filtered.filter(d=>!d._error);
+  if (!v.length) return;
+
+  const modal = groupBy(v,'modal');
+  mkChart('chartModal','doughnut',modal.map(x=>x[0]),modal.map(x=>x[1]),'Frete (R$)');
+
+  const tipo = groupBy(v,'tpCTe');
+  mkChart('chartTipo','doughnut',tipo.map(x=>x[0]),tipo.map(x=>x[1]),'Frete (R$)');
+
+  const emit = groupBy(v,'emitNome').slice(0,10);
+  mkBarH('chartEmit', emit.map(x=>x[0].split(' ').slice(0,4).join(' ')), emit.map(x=>x[1]));
+
+  // Mensal
+  const men={};
+  v.forEach(d=>{const k=d.dhEmiISO;if(k)men[k]=(men[k]||0)+(d.vTPrest||0);});
+  const mKeys=Object.keys(men).sort();
+  destroyChart('chartMensal');
+  charts['chartMensal']=new Chart($('chartMensal').getContext('2d'),{
+    type:'line',
+    data:{labels:mKeys.map(k=>{const[y,m]=k.split('-');return`${m}/${y}`;}),datasets:[{label:'Frete Mensal',data:mKeys.map(k=>men[k]),borderColor:'#1F4E79',backgroundColor:'rgba(31,78,121,.1)',fill:true,tension:.3,pointRadius:3,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:9}},grid:{display:false}},y:{ticks:{font:{size:9},callback:v=>fmt(v)},grid:{color:'#f1f5f9'}}}}
+  });
+
+  // Frete por loja (apenas registros com loja identificada)
+  const lojaData = groupBy(v.filter(d=>d.isLojaDest),'destNome').slice(0,15);
+  mkBarH('chartLoja', lojaData.map(x=>x[0]), lojaData.map(x=>x[1]));
+
+  // Peso
+  const faixas={'0-100kg':0,'101-500kg':0,'501-1t':0,'1t-5t':0,'5t-10t':0,'>10t':0};
+  v.forEach(d=>{
+    const p=d.peso;
+    if(p<=100)faixas['0-100kg']++;
+    else if(p<=500)faixas['101-500kg']++;
+    else if(p<=1000)faixas['501-1t']++;
+    else if(p<=5000)faixas['1t-5t']++;
+    else if(p<=10000)faixas['5t-10t']++;
+    else faixas['>10t']++;
+  });
+  mkChart('chartPeso','bar',Object.keys(faixas),Object.values(faixas),'Qtd CT-e',COLORS.slice(0,6));
+  charts['chartPeso'].options.scales.y.ticks.callback=v=>v;
+  charts['chartPeso'].update();
+}
+
+// ── KPIs ──────────────────────────────────────────────────────
+function renderKPIs() {
+  const v = filtered.filter(d=>!d._error);
+  if (!v.length) { $('kpiCards').innerHTML='<p style="color:#94a3b8;padding:2rem">Importe CT-e para visualizar os KPIs.</p>'; return; }
+
+  const totalFrete  = v.reduce((a,b)=>a+(b.vTPrest||0),0);
+  const totalNF     = v.reduce((a,b)=>a+(b.vCarga||0),0);
+  const totalPeso   = v.reduce((a,b)=>a+(b.peso||0),0);
+  const totalVol    = v.reduce((a,b)=>a+(b.volumes||0),0);
+  const totalCTe    = v.length;
+  const totalNFes   = v.reduce((a,b)=>a+(b.nfeCount||0),0);
+
+  // KPI 1 — % Frete sobre Faturamento (freight cost ratio)
+  const freightRatio = totalNF>0 ? (totalFrete/totalNF)*100 : 0;
+  // KPI 2 — Custo médio por kg
+  const custoKg = totalPeso>0 ? totalFrete/totalPeso : 0;
+  // KPI 3 — Custo médio por CT-e
+  const custoCTe = totalCTe>0 ? totalFrete/totalCTe : 0;
+  // KPI 4 — NFs por CT-e (taxa de consolidação)
+  const nfPorCTe = totalCTe>0 ? totalNFes/totalCTe : 0;
+  // KPI 5 — Volumes por CT-e
+  const volPorCTe = totalCTe>0 ? totalVol/totalCTe : 0;
+  // KPI 6 — Kg por CT-e
+  const kgPorCTe = totalCTe>0 ? totalPeso/totalCTe : 0;
+  // KPI 7 — % CT-e não consolidados
+  const nc = v.filter(d=>d._alerta).length;
+  const pctNC = totalCTe>0 ? (nc/totalCTe)*100 : 0;
+  // KPI 8 — Transportadoras distintas
+  const nTransp = new Set(v.map(d=>d.emitCNPJ)).size;
+  // KPI 9 — Rotas distintas
+  const nRotas = new Set(v.map(d=>`${d.ufIni}>${d.ufFim}`)).size;
+  // KPI 10 — Peso médio por NF
+  const kgPorNF = totalNFes>0 ? totalPeso/totalNFes : 0;
+
+  const cards = [
+    {label:'Freight Cost Ratio',value:freightRatio.toFixed(2)+'%',sub:'Frete / Valor NF — meta: <2%',cls:'',icon:'📊'},
+    {label:'Custo por kg',value:'R$ '+fmtN(custoKg,2),sub:'Eficiência de peso transportado',cls:'green',icon:'⚖️'},
+    {label:'Ticket Médio CT-e',value:fmt(custoCTe),sub:'Custo médio por conhecimento',cls:'purple',icon:'🎫'},
+    {label:'NFs por CT-e',value:fmtN(nfPorCTe,1),sub:'Taxa de consolidação de NFs',cls:'teal',icon:'📦'},
+    {label:'Volumes por CT-e',value:fmtN(volPorCTe,1),sub:'Densidade média de embarque',cls:'amber',icon:'📫'},
+    {label:'Kg por CT-e',value:fmtN(kgPorCTe,1)+' kg',sub:'Aproveitamento de capacidade',cls:'',icon:'🏋️'},
+    {label:'Fretes Não Consol.',value:pctNC.toFixed(1)+'%',sub:`${nc} de ${totalCTe} CT-e — meta: 0%`,cls:pctNC>5?'red':'green',icon:'⚠️'},
+    {label:'Transportadoras',value:nTransp,sub:'Fornecedores ativos no período',cls:'',icon:'🚚'},
+    {label:'Rotas Distintas',value:nRotas,sub:'Pares UF origem → destino',cls:'',icon:'🗺️'},
+    {label:'Kg por NF',value:fmtN(kgPorNF,1)+' kg',sub:'Peso médio por nota fiscal',cls:'orange',icon:'📄'},
+  ];
+  $('kpiCards').innerHTML = cards.map(k=>`
+    <div class="kpi-card ${k.cls}">
+      <div class="kpi-label">${k.icon} ${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+  // Responsividade dos cards
+  const ncols = Math.min(5, cards.length);
+  $('kpiCards').style.gridTemplateColumns = `repeat(${ncols},1fr)`;
+
+  // ── Gráfico 1: % Frete/NF por loja ──
+  const lojas = {};
+  v.filter(d=>d.isLojaDest&&d.vCarga>0).forEach(d=>{
+    if(!lojas[d.destNome])lojas[d.destNome]={frete:0,nf:0};
+    lojas[d.destNome].frete+=d.vTPrest;lojas[d.destNome].nf+=d.vCarga;
+  });
+  const lojaArr=Object.entries(lojas).map(([k,v])=>({k,pct:(v.frete/v.nf)*100})).sort((a,b)=>b.pct-a.pct).slice(0,12);
+  destroyChart('kpiFreteLojaPlot');
+  if(lojaArr.length){
+    charts['kpiFreteLojaPlot']=new Chart($('kpiFreteLojaPlot').getContext('2d'),{
+      type:'bar',
+      data:{labels:lojaArr.map(x=>x.k),datasets:[{data:lojaArr.map(x=>x.pct),backgroundColor:lojaArr.map(x=>x.pct>2?'#dc2626':'#16a34a'),borderWidth:0}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toFixed(2)}%`}}},
+        scales:{x:{ticks:{font:{size:9},callback:v=>v.toFixed(1)+'%'},grid:{color:'#f1f5f9'}},y:{ticks:{font:{size:9}}}}}
+    });
+  }
+
+  // ── Gráfico 2: R$/kg por transportadora ──
+  const transp={};
+  v.filter(d=>d.peso>0).forEach(d=>{
+    if(!transp[d.emitNome])transp[d.emitNome]={frete:0,peso:0};
+    transp[d.emitNome].frete+=d.vTPrest;transp[d.emitNome].peso+=d.peso;
+  });
+  const transpArr=Object.entries(transp).map(([k,v])=>({k,rkg:v.frete/v.peso})).sort((a,b)=>b.rkg-a.rkg).slice(0,10);
+  destroyChart('kpiRkgTransp');
+  if(transpArr.length){
+    charts['kpiRkgTransp']=new Chart($('kpiRkgTransp').getContext('2d'),{
+      type:'bar',data:{labels:transpArr.map(x=>x.k.split(' ').slice(0,3).join(' ')),datasets:[{data:transpArr.map(x=>x.rkg),backgroundColor:COLORS.slice(0,transpArr.length),borderWidth:0}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`R$ ${c.raw.toFixed(4)}/kg`}}},
+        scales:{x:{ticks:{font:{size:9},callback:v=>'R$ '+v.toFixed(2)},grid:{color:'#f1f5f9'}},y:{ticks:{font:{size:9}}}}}
+    });
+  }
+
+  // ── Gráfico 3: Volume médio por CT-e por transportadora ──
+  const transpVol={};
+  v.forEach(d=>{
+    if(!transpVol[d.emitNome])transpVol[d.emitNome]={vol:0,ct:0};
+    transpVol[d.emitNome].vol+=d.volumes;transpVol[d.emitNome].ct++;
+  });
+  const volArr=Object.entries(transpVol).map(([k,v])=>({k,avg:v.vol/v.ct})).sort((a,b)=>b.avg-a.avg).slice(0,10);
+  destroyChart('kpiVolMedio');
+  if(volArr.length){
+    charts['kpiVolMedio']=new Chart($('kpiVolMedio').getContext('2d'),{
+      type:'bar',data:{labels:volArr.map(x=>x.k.split(' ').slice(0,3).join(' ')),datasets:[{data:volArr.map(x=>x.avg),backgroundColor:'#0f766e',borderWidth:0}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toFixed(1)} vol/CT-e`}}},
+        scales:{x:{ticks:{font:{size:9}}},y:{ticks:{font:{size:9}}}}}
+    });
+  }
+
+  // ── Gráfico 4: Concentração de frete (Pareto transportadoras) ──
+  const emitArr=groupBy(v,'emitNome').slice(0,8);
+  const outrosFrete=totalFrete-emitArr.reduce((a,b)=>a+b[1],0);
+  const concLabels=[...emitArr.map(x=>x[0].split(' ')[0])];
+  const concData=[...emitArr.map(x=>x[1])];
+  if(outrosFrete>0){concLabels.push('Outros');concData.push(outrosFrete);}
+  destroyChart('kpiConcentracao');
+  charts['kpiConcentracao']=new Chart($('kpiConcentracao').getContext('2d'),{
+    type:'doughnut',
+    data:{labels:concLabels,datasets:[{data:concData,backgroundColor:[...COLORS.slice(0,emitArr.length),'#cbd5e1'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:9},boxWidth:8,padding:3}},tooltip:{callbacks:{label:c=>`${c.label}: ${fmt(c.raw)} (${((c.raw/totalFrete)*100).toFixed(1)}%)`}}}}
+  });
+
+  // ── Gráfico 5: Frequência de envios por mês ──
+  const freq={};
+  v.forEach(d=>{const k=d.dhEmiISO;if(k)freq[k]=(freq[k]||0)+1;});
+  const fKeys=Object.keys(freq).sort();
+  destroyChart('kpiFreqMensal');
+  charts['kpiFreqMensal']=new Chart($('kpiFreqMensal').getContext('2d'),{
+    type:'bar',
+    data:{labels:fKeys.map(k=>{const[y,m]=k.split('-');return`${m}/${y}`;}),
+      datasets:[{label:'CT-e emitidos',data:fKeys.map(k=>freq[k]),backgroundColor:'#7c3aed',borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:9}},grid:{display:false}},y:{ticks:{font:{size:9}},grid:{color:'#f1f5f9'}}}}
+  });
+
+  // ── Gráfico 6: Top 10 rotas por custo ──
+  const rot={};
+  v.forEach(d=>{
+    const k=`${d.ufIni||'?'} → ${d.ufFim||'?'}`;
+    if(!rot[k])rot[k]={frete:0,ct:0};
+    rot[k].frete+=d.vTPrest;rot[k].ct++;
+  });
+  const rotArr=Object.entries(rot).sort((a,b)=>b[1].frete-a[1].frete).slice(0,10);
+  destroyChart('kpiRotas');
+  charts['kpiRotas']=new Chart($('kpiRotas').getContext('2d'),{
+    type:'bar',data:{labels:rotArr.map(x=>x[0]),datasets:[{data:rotArr.map(x=>x[1].frete),backgroundColor:COLORS.slice(0,rotArr.length),borderWidth:0}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${fmt(c.raw)} (${rot[rotArr[c.dataIndex][0]].ct} CT-e)`}}},
+      scales:{x:{ticks:{font:{size:9},callback:v=>fmt(v)},grid:{color:'#f1f5f9'}},y:{ticks:{font:{size:9}}}}}
+  });
+
+  // ── Gráfico 7: % não consolidados por transportadora ──
+  const ncMap={};
+  v.forEach(d=>{
+    const k=d.emitNome.split(' ').slice(0,3).join(' ');
+    if(!ncMap[k])ncMap[k]={total:0,nc:0};
+    ncMap[k].total++;
+    if(d._alerta)ncMap[k].nc++;
+  });
+  const ncArr=Object.entries(ncMap).filter(([,v])=>v.total>=2).map(([k,v])=>({k,pct:(v.nc/v.total)*100,total:v.total})).sort((a,b)=>b.pct-a.pct).slice(0,10);
+  destroyChart('kpiNaoConsol');
+  if(ncArr.length){
+    charts['kpiNaoConsol']=new Chart($('kpiNaoConsol').getContext('2d'),{
+      type:'bar',
+      data:{labels:ncArr.map(x=>x.k),datasets:[
+        {label:'% NC',data:ncArr.map(x=>x.pct),backgroundColor:ncArr.map(x=>x.pct>10?'#dc2626':x.pct>5?'#f59e0b':'#16a34a'),borderWidth:0}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toFixed(1)}% não consolidados (${ncArr[c.dataIndex].total} CT-e)`}}},
+        scales:{x:{ticks:{font:{size:9},maxRotation:30},grid:{display:false}},y:{ticks:{font:{size:9},callback:v=>v.toFixed(0)+'%'},max:100,grid:{color:'#f1f5f9'}}}}
+    });
+  }
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['tabela','graficos','kpis'][i]===tab));
+  $('tabela').style.display   = tab==='tabela'  ?'':'none';
+  $('graficos').style.display = tab==='graficos' ?'':'none';
+  $('kpis').style.display     = tab==='kpis'     ?'':'none';
+  if (tab==='graficos') renderCharts();
+  if (tab==='kpis') renderKPIs();
+}
+
+// ── EXPORTAÇÃO PRINCIPAL ──────────────────────────────────────
+const COLS_KEY  = ['emitNome','emitCNPJ','nCT','chave','dhEmi','vFrete','vCarga','freteNFpct','freteKg','peso','volumes','remNome','remNomeRaw','remCNPJ','remMun','remUF','destNome','destNomeRaw','destCNPJ','destMun','destUF','nfes','arquivo'];
+const COLS_HDR  = ['Emissor DACTe','CNPJ Emissor','Nº DACTe','Chave de Acesso','Data Emissão','Vl. Frete R$','Vl. NF R$','% Frete/NF','R$/kg','Peso (kg)','Volumes','Remetente (Loja)','Remetente (Razão Social)','CNPJ Remetente','Cidade Remetente','UF Remetente','Destinatário (Loja)','Destinatário (Razão Social)','CNPJ Dest.','Cidade Dest.','UF Dest.','NF-e(s)','Arquivo XML'];
+
+function exportCSV() {
+  const rows=[COLS_HDR.join(';')];
+  filtered.filter(d=>!d._error).forEach(d=>{
+    rows.push(COLS_KEY.map(c=>{
+      let v=d[c]??'';
+      if(typeof v==='number')v=v.toFixed(4).replace('.',',');
+      return`"${String(v).replace(/"/g,'""')}"`;
+    }).join(';'));
+  });
+  dl('\uFEFF'+rows.join('\n'),`cte_${iso()}.csv`,'text/csv;charset=utf-8');
+}
+
+function exportXLSX() {
+  const rows=[COLS_HDR];
+  filtered.filter(d=>!d._error).forEach(d=>rows.push(COLS_KEY.map(c=>d[c]??'')));
+
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[32,16,10,44,12,14,14,10,10,12,8,24,28,16,20,6,24,28,16,20,6,28,35].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb,ws,'CT-e');
+
+  // Resumo
+  const v=filtered.filter(d=>!d._error);
+  const resumo=[
+    ['RESUMO DE FRETES'],[''],
+    ['Total de CT-e', v.length],
+    ['Valor Total de Frete', v.reduce((a,b)=>a+(b.vFrete||0),0)],
+    ['Valor Total Prestação', v.reduce((a,b)=>a+(b.vTPrest||0),0)],
+    ['Peso Total (kg)', v.reduce((a,b)=>a+(b.peso||0),0)],
+    ['NF-e Vinculadas', v.reduce((a,b)=>a+(b.nfeCount||0),0)],
+    ['Ticket Médio Frete', v.length?v.reduce((a,b)=>a+(b.vTPrest||0),0)/v.length:0],
+    ['CT-e Não Consolidados', v.filter(d=>d._alerta).length],
+    [''],['Gerado em', new Date().toLocaleString('pt-BR')]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo), 'Resumo');
+  XLSX.writeFile(wb, `cte_${iso()}.xlsx`);
+}
+
+// ── EXPORTAÇÃO CONTESTAÇÃO ────────────────────────────────────
+function exportAlertaCSV() {
+  if (!alertaGroups.length) return;
+  const hdrs = ['Remetente','CNPJ Remetente','Destinatário','CNPJ Dest.','Transportadora','CNPJ Transp.','Data Emissão','Rota','Nº CT-e','Chave','NF-e(s)','Vl. Frete','Vl. Total','Vl. NF (mercadoria)','% Frete/NF','R$/kg','Volumes','Peso (kg)','Origem','Destino','Motivo'];
+  const rows = [hdrs.join(';')];
+  alertaGroups.forEach(g => {
+    g.ctes.forEach(c => {
+      rows.push([
+        g.remetente, g.cnpjRem, g.destinatario, g.cnpjDest, g.transportadora, g.cnpjTransp, g.data, g.rota,
+        c.nCT, c.chave, c.nfes,
+        c.vFrete.toFixed(2).replace('.',','),
+        c.vTPrest.toFixed(2).replace('.',','),
+        c.vCarga>0?c.vCarga.toFixed(2).replace('.',','):'',
+        c.vCarga>0?c.freteNFpct.toFixed(2).replace('.',',')+'%':'',
+        c.peso>0?c.freteKg.toFixed(4).replace('.',','):'',
+        c.volumes||'',
+        c.peso.toFixed(3).replace('.',','),
+        c.orig, c.dest2,
+        'Frete não consolidado — mesmo remetente, mesmo destinatário, mesma data'
+      ].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(';'));
+    });
+    rows.push(['']);
+  });
+  dl('\uFEFF'+rows.join('\n'),`contestacao_fretes_${iso()}.csv`,'text/csv;charset=utf-8');
+}
+
+function exportAlertaXLSX() {
+  if (!alertaGroups.length) return;
+  const wb = XLSX.utils.book_new();
+
+  const hdrs = ['Remetente','CNPJ Remetente','Destinatário','CNPJ Dest.','Transportadora','CNPJ Transp.','Data Emissão','Rota','Nº CT-e','Chave de Acesso','NF-e(s)','Vl. Frete R$','Vl. Total R$','Vl. NF (mercadoria) R$','% Frete/NF','R$/kg','Volumes','Peso (kg)','Origem','Destino','Motivo'];
+  const rows = [hdrs];
+  alertaGroups.forEach(g => {
+    g.ctes.forEach(c => {
+      rows.push([
+        g.remetente, g.cnpjRem, g.destinatario, g.cnpjDest, g.transportadora, g.cnpjTransp, g.data, g.rota,
+        c.nCT, c.chave, c.nfes,
+        c.vFrete, c.vTPrest,
+        c.vCarga||'', c.vCarga>0?c.freteNFpct:'' , c.peso>0?c.freteKg:'',
+        c.volumes||'', c.peso, c.orig, c.dest2,
+        'Frete não consolidado — mesmo remetente, mesmo destinatário, mesma data'
+      ]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[28,16,28,16,28,16,12,20,10,44,28,14,14,16,10,10,8,12,14,14,55].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws, 'Contestação');
+
+  const rsm = [['RESUMO — FRETES NÃO CONSOLIDADOS'],[''],
+    ['Remetente','CNPJ Remetente','Destinatário','CNPJ Dest.','Transportadora','CNPJ Transp.','Data','Rota','Qtd CT-e','Total Frete R$']];
+  alertaGroups.forEach(g=>rsm.push([g.remetente,g.cnpjRem,g.destinatario,g.cnpjDest,g.transportadora,g.cnpjTransp,g.data,g.rota,g.ctes.length,g.totalFrete]));
+  rsm.push([''],['Total CT-e para contestação', alertaGroups.reduce((a,g)=>a+g.ctes.length,0)]);
+  rsm.push(['Total em frete', alertaGroups.reduce((a,g)=>a+g.totalFrete,0)]);
+  rsm.push([''],['Gerado em', new Date().toLocaleString('pt-BR')]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rsm), 'Resumo Contestação');
+
+  XLSX.writeFile(wb, `contestacao_fretes_${iso()}.xlsx`);
+}
+
+// ── UTILITÁRIOS ───────────────────────────────────────────────
+function dl(content, name, type) {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name; a.click();
+}
+function iso() { return new Date().toISOString().slice(0,10); }
+
+function clearAll() {
+  allData=[]; filtered=[]; alertaGroups=[];
+  $('mainTable').style.display='none';
+  $('emptyState').style.display='';
+  $('pagination').style.display='none';
+  $('alertBanner').classList.remove('show');
+  updateStats();
+  Object.keys(charts).forEach(k=>{charts[k].destroy();delete charts[k];});
+  populateFilters();
+}
+
+// ── LEITURA DE ARQUIVOS ───────────────────────────────────────
+function processFiles(files) {
+  const xmls = Array.from(files).filter(f=>f.name.toLowerCase().endsWith('.xml'));
+  if (!xmls.length) return;
+  $('progressOverlay').style.display='flex';
+  let done=0;
+  xmls.forEach(f => {
+    const r=new FileReader();
+    r.onload=e=>{
+      allData.push(parseCTe(e.target.result, f.name));
+      done++;
+      $('progressBar').style.width=(done/xmls.length*100)+'%';
+      $('progressLabel').textContent=`${done} de ${xmls.length} arquivos`;
+      if (done===xmls.length) {
+        $('progressOverlay').style.display='none';
+        detectarNaoConsolidados(allData);
+        renderAlertBanner();
+        populateFilters();
+        applyFilters();
+      }
+    };
+    r.readAsText(f,'utf-8');
+  });
+}
+
+// ── EVENTOS ───────────────────────────────────────────────────
+const dz=$('dropZone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');processFiles(e.dataTransfer.files);});
+dz.addEventListener('click',()=>$('fileInput').click());
+$('fileInput').addEventListener('change',e=>{processFiles(e.target.files);e.target.value='';});
+$('searchBox').addEventListener('input',applyFilters);
+['filterTipo','filterModal','filterUFOrig','filterUFDest','filterLoja','filterAlerta'].forEach(id=>$(id).addEventListener('change',applyFilters));
+</script>
+</body>
+</html>
